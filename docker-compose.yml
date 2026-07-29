@@ -1,0 +1,13 @@
+services:
+  archive-dead-queue-worker-rmq:
+    image: rjyspl/archive-dead-queue-worker:latest
+    container_name: archive-dead-queue-worker
+
+    env_file: 
+      - .env
+
+    volumes:
+      - ./logs:/app/logs
+      - /data/archive:/app/archive
+
+    restart: always

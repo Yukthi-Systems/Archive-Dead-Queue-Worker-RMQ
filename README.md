@@ -22,6 +22,7 @@ local/test instance) for debugging.
 - [Usage](#usage)
   - [consumer](#consumer)
   - [republish](#republish)
+- [Docker](#docker)
 - [How it works](#how-it-works)
 - [Project layout](#project-layout)
 - [Development](#development)
@@ -140,6 +141,72 @@ go run ./cmd/republish \
 | `-index`  | `0`                           | Index of the message in the export array to republish      |
 | `-url`    | `$TEST_AMQP_URL`              | AMQP URL of the target broker                               |
 | `-queue`  | *(required)*                  | Target queue name (delivered via the default exchange)      |
+
+## Docker
+
+A prebuilt image of the `consumer` worker is published to Docker Hub as
+[`rjyspl/archive-dead-queue-worker`](https://hub.docker.com/r/rjyspl/archive-dead-queue-worker).
+Only `cmd/consumer` is containerized; `republish` is a local debugging tool
+and is run with `go run` (see [republish](#republish)).
+
+### Using docker compose (recommended)
+
+1. Create your `.env` file (see [Configuration](#configuration)):
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit [docker-compose.yml](docker-compose.yml) if needed — by default it
+   mounts `./logs` for log output and `/data/archive` on the host for
+   archived messages:
+
+   ```yaml
+   services:
+     archive-dead-queue-worker-rmq:
+       image: rjyspl/archive-dead-queue-worker:latest
+       container_name: archive-dead-queue-worker
+       env_file:
+         - .env
+       volumes:
+         - ./logs:/app/logs
+         - /data/archive:/app/archive
+       restart: always
+   ```
+
+3. Start it:
+
+   ```bash
+   docker compose up -d
+   ```
+
+`LOG_FILE` and `ARCHIVE_BASE_PATH` in `.env` should stay under `/app/logs`
+and `/app/archive` respectively (their defaults already are) so they land
+on the mounted volumes; otherwise archived files and logs will only exist
+inside the container's writable layer and be lost when it is recreated.
+
+### Using docker run
+
+```bash
+docker run -d \
+  --name archive-dead-queue-worker \
+  --env-file .env \
+  -v "$(pwd)/logs:/app/logs" \
+  -v /data/archive:/app/archive \
+  --restart always \
+  rjyspl/archive-dead-queue-worker:latest
+```
+
+### Building the image locally
+
+```bash
+docker build -t archive-dead-queue-worker:local .
+```
+
+The image is a multi-stage build (`golang:1.25-alpine` → `alpine:latest`)
+that produces a small, statically-linked binary with no Go toolchain in the
+final image. It ships a `HEALTHCHECK` that verifies the `consumer` process
+is running.
 
 ## How it works
 
